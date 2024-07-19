@@ -7,7 +7,6 @@
  */
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::thread;
 
 use miette::{IntoDiagnostic, Report, Result};
 use pyo3::exceptions::PyException;
@@ -33,11 +32,11 @@ fn report2py(r: Report) -> PyErr {
 fn py_to_named_rows(ob: &PyAny) -> PyResult<NamedRows> {
     let d = ob.downcast::<PyDict>()?;
     let rows = d
-        .get_item("rows")
+        .get_item("rows")?
         .ok_or_else(|| PyException::new_err("named rows must contain 'rows'"))?;
     let rows = py_to_rows(rows)?;
     let headers = d
-        .get_item("headers")
+        .get_item("headers")?
         .ok_or_else(|| PyException::new_err("named rows must contain 'headers'"))?;
     let headers = headers.extract::<Vec<String>>()?;
     Ok(NamedRows::new(headers, rows))
@@ -258,7 +257,7 @@ impl CozoDbPy {
         if let Some(db) = &self.db {
             let cb: Py<PyAny> = callback.into();
             let (id, ch) = db.register_callback(rel, None);
-            thread::spawn(move || {
+            rayon::spawn(move || {
                 for (op, new, old) in ch {
                     Python::with_gil(|py| {
                         let op = PyString::new(py, op.as_str()).into();

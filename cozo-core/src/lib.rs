@@ -33,7 +33,6 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::thread;
 #[allow(unused_imports)]
 use std::time::Instant;
 
@@ -76,6 +75,7 @@ pub use crate::runtime::db::evaluate_expressions;
 pub use crate::runtime::db::get_variables;
 pub use crate::runtime::db::Poison;
 pub use crate::runtime::db::ScriptMutability;
+pub use crate::runtime::db::Payload;
 pub use crate::runtime::db::TransactionPayload;
 
 pub(crate) mod data;
@@ -506,7 +506,10 @@ impl DbInstance {
         let (app2db_send, app2db_recv) = bounded(1);
         let (db2app_send, db2app_recv) = bounded(1);
         let db = self.clone();
-        thread::spawn(move || db.run_multi_transaction(write, app2db_recv, db2app_send));
+        #[cfg(target_arch = "wasm32")]
+        std::thread::spawn(move || db.run_multi_transaction(write, app2db_recv, db2app_send));
+        #[cfg(not(target_arch = "wasm32"))]
+        rayon::spawn(move || db.run_multi_transaction(write, app2db_recv, db2app_send));
         MultiTransaction {
             sender: app2db_send,
             receiver: db2app_recv,
